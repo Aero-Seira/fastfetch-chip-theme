@@ -363,7 +363,7 @@ LOCKUPS = {
     "super": ("\u25cf \u1d39 \u2074", "\u1d3e \u1d3f \u1d3c"),           # superscript caps
 }
 
-def build_pcb(COLS=32, ROWS=16, DW=14, DH=7, ink=8, rim=6, trace=3, pad=4, via=5,
+def build_pcb(COLS=32, ROWS=16, DW=16, DH=8, ink=8, rim=6, trace=3, pad=4, via=5,
               power=2.0, reach=1.45, lockup="ascii"):
     ox, oy = (COLS-DW)//2, (ROWS-DH)//2
     L, R, T, B = ox, ox+DW, oy, oy+DH          # boundary cells: cols L..R-1, rows T..B-1
@@ -418,7 +418,7 @@ def build_pcb(COLS=32, ROWS=16, DW=14, DH=7, ink=8, rim=6, trace=3, pad=4, via=5
 
     # ---- lockup: the wordmark, as plain characters, centred in the die ----
     l1, l2 = LOCKUPS[lockup]
-    top = T + 1 + max(0, (DH - 2 - 3) // 2)
+    top = T + 1 + max(0, (DH - 2 - 3 + 1) // 2)
     for i, line in enumerate((l1, l2)):
         y = top + i * 2
         x = ox + (DW - len(line)) // 2          # equal widths -> same x -> justified
@@ -514,8 +514,8 @@ def main():
     tag = {"pcb32": "_small", "small": "_small", "mark": "_mark"}.get(a.size, "")
     out = a.output or os.path.join(here, "themes", "m4pro%s.txt" % tag)
     # COLS = 2*ROWS keeps the whole fetch square (1 cell = 1 x 2 units)
-    PCB = {"pcb":   dict(COLS=32, ROWS=16, DW=14, DH=7),
-           "pcb32": dict(COLS=36, ROWS=18, DW=16, DH=8)}
+    PCB = {"pcb":   dict(COLS=32, ROWS=16, DW=16, DH=8),
+           "pcb32": dict(COLS=36, ROWS=18, DW=20, DH=10)}
     board = None
     if a.size in PCB:
         board = build_pcb(**PCB[a.size], power=a.power, reach=a.reach, lockup=a.lockup)[0]
