@@ -61,8 +61,11 @@ fastfetch -c themes/config.jsonc --logo-type file --logo themes/m4pro.txt
 ## Regenerate / customise
 
 ```sh
-python3 tools/gen_logo.py --size pcb36         # 36x17 -> themes/m4pro.txt + assets/preview.png
-python3 tools/gen_logo.py --size pcb32         # 32x17 -> themes/m4pro_small.txt
+python3 tools/gen_logo.py --size pcb           # 28x16 -> themes/m4pro.txt + assets/preview.png
+python3 tools/gen_logo.py --size pcb32         # 34x18 -> themes/m4pro_small.txt
+python3 tools/gen_logo.py --size pcb --lockup caps     # small-caps wordmark
+python3 tools/gen_logo.py --size pcb --lockup super    # superscript wordmark
+python3 tools/gen_logo.py --size pcb --power 2.4 --reach 1.6   # softer glow
 python3 tools/gen_logo.py --size full          # the older filled-block badge (36x18)
 python3 tools/gen_logo.py --size mark          # 38x19, with the Apple mark
 python3 tools/gen_logo.py --size pcb36 --power 1.9 --reach 1.15   # tighter glow
@@ -79,15 +82,15 @@ repository (it is Apple's copyrighted image), the logo is drawn from geometry.
 ## Files
 
 ```
-themes/m4pro.txt          36x17 PCB logo, $1..$9 colour placeholders
-themes/m4pro_small.txt    32x17 variant
+themes/m4pro.txt          28x16 PCB logo, $1..$9 colour placeholders
+themes/m4pro_small.txt    34x18 variant
 themes/config.jsonc       fastfetch config (logo palette + key/title colours + structure)
 tools/gen_logo.py         the generator
 bin/install.sh            install / bin/uninstall.sh remove
 assets/preview*.png       rendered previews
 ```
 
-The module list in `config.jsonc` is 20 lines, so the 17-line logo is always
+The module list in `config.jsonc` is 20 lines, so the 16-line logo is always
 printed in full (`logo.printRemaining` is enabled as a fallback too).
 
 Requires a font with U+2500-U+25FF (box drawing + blocks) and U+25CB — Menlo,

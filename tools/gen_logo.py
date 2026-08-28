@@ -355,8 +355,15 @@ def blit_font(board, text, x, y, idx, gap=1):
 def lockup_width(text, gap=1):
     return sum(len(FONT[t]) and len(FONT[t][0]) for t in text) + gap*(len(text)-1)
 
-def build_pcb(COLS=36, ROWS=18, DW=20, DH=11, ink=8, rim=6, trace=3, pad=4, via=5,
-              power=1.7, reach=1.30):
+# the wordmark written with literal characters (no fake font at all)
+LOCKUPS = {
+    "ascii": ("M 4", "PRO"),      # plain ASCII - renders in every font
+    "caps":  ("\u1d0d 4", "\u1d18\u0280\u1d0f"),   # small caps
+    "super": ("\u1d39 \u2074", "\u1d3e\u1d3f\u1d3c"),   # superscript caps
+}
+
+def build_pcb(COLS=28, ROWS=16, DW=14, DH=7, ink=8, rim=6, trace=3, pad=4, via=5,
+              power=2.0, reach=1.45, lockup="ascii"):
     ox, oy = (COLS-DW)//2, (ROWS-DH)//2
     L, R, T, B = ox, ox+DW, oy, oy+DH          # boundary cells: cols L..R-1, rows T..B-1
     b = Board(COLS, ROWS)
@@ -408,12 +415,28 @@ def build_pcb(COLS=36, ROWS=18, DW=20, DH=11, ink=8, rim=6, trace=3, pad=4, via=
     b.set(L, T, S|E, rim); b.set(R-1, T, S|W, rim)
     b.set(L, B-1, N|E, rim); b.set(R-1, B-1, N|W, rim)
 
-    # ---- lockup: M4 over PRO ----
-    w_m4, w_pro = lockup_width("M4", 1), lockup_width("PRO", 1)
-    blit_font(b, "M4",  ox + (DW - w_m4)//2,  T + 1, ink, 1)
-    blit_font(b, "PRO", ox + (DW - w_pro)//2, T + 6, ink, 1)
+    # ---- lockup: the wordmark, as plain characters, centred in the die ----
+    l1, l2 = LOCKUPS[lockup]
+    top = T + 1 + max(0, (DH - 2 - 3) // 2)
+    for i, line in enumerate((l1, l2)):
+        y = top + i * 2
+        x = ox + (DW - len(line)) // 2
+        for c, ch in enumerate(line):
+            if ch != " ": b.set(x + c, y, 0, ink, ch)
     return b, (ox, oy, DW, DH)
 
+
+KNOWN = set(" \u2588\u2580\u2584\u258c\u2590\u259b\u259c\u2599\u259f\u25cb\u00b7"
+            "\u2596\u2597\u2598\u259d\u259a\u259e") | set(BOX.values())
+
+def _font(px):
+    from PIL import ImageFont
+    for cand, idx in (("/System/Library/Fonts/Menlo.ttc", 0),
+                      ("/System/Library/Fonts/SFMono-Regular.otf", 0),
+                      ("/Library/Fonts/JetBrainsMonoNerdFont-Regular.ttf", 0)):
+        try: return ImageFont.truetype(cand, px, index=idx)
+        except Exception: pass
+    return ImageFont.load_default()
 
 def preview_board(board, path=None, cw=18, ch=36, bg=(26, 28, 34)):
     from PIL import Image, ImageDraw
@@ -421,12 +444,21 @@ def preview_board(board, path=None, cw=18, ch=36, bg=(26, 28, 34)):
     img = Image.new("RGB", (cols*cw, rows*ch), bg)
     dr = ImageDraw.Draw(img)
     LW = max(1, cw//8)
+    fnt = _font(int(cw*1.55))
     def line(x0,y0,x1,y1,c): dr.line([x0,y0,x1,y1], fill=c, width=LW)
     for y in range(rows):
         for x in range(cols):
             i = board.col[y][x]; ch_ = board.ch[y][x] or BOX.get(board.mask[y][x], " ")
             c = PALETTE[i]; L, T = x*cw, y*ch; R, B = L+cw-1, T+ch-1; cx, cy = L+cw//2, T+ch//2
             if ch_ == " ": continue
+            elif ch_ not in KNOWN:                       # literal wordmark character
+                try:
+                    bb = dr.textbbox((0, 0), ch_, font=fnt)
+                    dr.text((L + (cw - (bb[2]-bb[0]))/2 - bb[0], T + (ch - (bb[3]-bb[1]))/2 - bb[1]),
+                            ch_, font=fnt, fill=c)
+                except Exception:
+                    dr.text((L+2, T+2), ch_, font=fnt, fill=c)
+                continue
             elif ch_ == BLOCK: dr.rectangle([L,T,R,B], fill=c)
             elif ch_ == "\u2580": dr.rectangle([L,T,R,T+ch//2-1], fill=c)
             elif ch_ == "\u2584": dr.rectangle([L,T+ch//2,R,B], fill=c)
@@ -467,7 +499,9 @@ def main():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     ap = argparse.ArgumentParser()
     ap.add_argument("--style", choices=["pcb", "die"], default="pcb")
-    ap.add_argument("--size", choices=["pcb36", "pcb32"] + list(SIZES), default="pcb36")
+    ap.add_argument("--size", choices=["pcb", "pcb32"] + list(SIZES), default="pcb")
+    ap.add_argument("--lockup", choices=list(LOCKUPS), default="ascii",
+                    help="how the wordmark is spelled (caps/super need a font with those codepoints)")
     ap.add_argument("--apple", action="store_true", help="force the Apple mark into the lockup")
     ap.add_argument("-o", "--output", default=None)
     ap.add_argument("--preview", default=None)
@@ -478,11 +512,11 @@ def main():
     a = ap.parse_args()
     tag = {"pcb32": "_small", "small": "_small", "mark": "_mark"}.get(a.size, "")
     out = a.output or os.path.join(here, "themes", "m4pro%s.txt" % tag)
-    PCB = {"pcb36": dict(COLS=36, ROWS=17, DW=20, DH=11),
-           "pcb32": dict(COLS=32, ROWS=17, DW=20, DH=11)}
+    PCB = {"pcb":   dict(COLS=28, ROWS=16, DW=14, DH=7),
+           "pcb32": dict(COLS=34, ROWS=18, DW=16, DH=8)}
     board = None
     if a.size in PCB:
-        board = build_pcb(**PCB[a.size], power=a.power, reach=a.reach)[0]
+        board = build_pcb(**PCB[a.size], power=a.power, reach=a.reach, lockup=a.lockup)[0]
         grid = board.render()
         cells = None
     else:
