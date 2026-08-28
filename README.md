@@ -20,13 +20,13 @@ left out on purpose — at fetch size it turns into a blob and steals the focus;
 | die body + glow | `█` full blocks, radial ramp | `$1`-`$5` navy → bright blue |
 | `M4` / `PRO` | `█` full blocks | `$8` silver `#C8DEEE` |
 
-* **Geometry, not a trace.** Every glyph (`M`, `4`, `P`, `R`, `O`, and the Apple
-  mark in the `mark` preset) is rasterised from circles, ellipses, rectangles and stroked
+* **Geometry, not a trace.** The die glow, the Apple mark and the `die`-style
+  glyphs are rasterised from circles, ellipses, rectangles and stroked
   segments, then sampled into terminal cells where **1 column = 1 unit wide and
-  1 row = 2 units tall** — so a 36 x 18 grid renders as a true square.
-* **Type size vs. die.** The lockup is 21 x 6 cells inside a 34 x 16 interior, so
-  the badge keeps the official artwork's negative space instead of filling the
-  die edge to edge. Cap height 6 cells, `PRO` 5 cells, one cell of leading.
+  1 row = 2 units tall** — so a 20 x 11 die renders as a near-square.
+* **Junctions come for free.** Traces are stored as N/E/S/W connection bitmasks
+  and resolved through one box-drawing table, so a stub that lands on the package
+  rim automatically becomes `┬`/`┴`/`├`/`┤` — no hand-placing.
 * **Re-tintable.** The logo file only contains fastfetch's `$1`…`$9` colour
   placeholders, so the whole badge is recoloured from `logo.color` in the config
   — no need to edit the art.
@@ -61,12 +61,12 @@ fastfetch -c themes/config.jsonc --logo-type file --logo themes/m4pro.txt
 ## Regenerate / customise
 
 ```sh
-python3 tools/gen_logo.py --size full          # 36x18  -> themes/m4pro.txt + assets/preview.png
-python3 tools/gen_logo.py --size small         # 32x16  -> themes/m4pro_small.txt
+python3 tools/gen_logo.py --size pcb36         # 36x17 -> themes/m4pro.txt + assets/preview.png
+python3 tools/gen_logo.py --size pcb32         # 32x17 -> themes/m4pro_small.txt
+python3 tools/gen_logo.py --size full          # the older filled-block badge (36x18)
 python3 tools/gen_logo.py --size mark          # 38x19, with the Apple mark
-python3 tools/gen_logo.py --size full --apple  # add the mark to the current size
-python3 tools/gen_logo.py --power 1.8 --reach 1.05   # tighter glow
-python3 tools/gen_logo.py --mono               # single-colour logo ($1 only)
+python3 tools/gen_logo.py --size pcb36 --power 1.9 --reach 1.15   # tighter glow
+python3 tools/gen_logo.py --size full --mono   # single-colour logo ($1 only)
 ```
 
 Presets live in one table at the top of the script (`SIZES`): die size, cap
@@ -79,13 +79,16 @@ repository (it is Apple's copyrighted image), the logo is drawn from geometry.
 ## Files
 
 ```
-themes/m4pro.txt          36x18 logo, $1..$9 colour placeholders
-themes/m4pro_small.txt    32x16 variant
+themes/m4pro.txt          36x17 PCB logo, $1..$9 colour placeholders
+themes/m4pro_small.txt    32x17 variant
 themes/config.jsonc       fastfetch config (logo palette + key/title colours + structure)
 tools/gen_logo.py         the generator
 bin/install.sh            install / bin/uninstall.sh remove
 assets/preview*.png       rendered previews
 ```
 
-The module list in `config.jsonc` is 20 lines, so the 18-line logo is always
+The module list in `config.jsonc` is 20 lines, so the 17-line logo is always
 printed in full (`logo.printRemaining` is enabled as a fallback too).
+
+Requires a font with U+2500-U+25FF (box drawing + blocks) and U+25CB — Menlo,
+SF Mono and JetBrains Mono all have them.

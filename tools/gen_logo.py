@@ -227,7 +227,7 @@ def emit(cells, mono=False):
         lines.append("".join(out))
     return "\n".join(lines) + "\n"
 
-def preview(cells, path, cw=18, ch=36, bg=(26, 28, 34)):
+def preview(cells, path=None, cw=18, ch=36, bg=(26, 28, 34)):
     from PIL import Image, ImageDraw
     rows, cols = len(cells), len(cells[0])
     img = Image.new("RGB", (cols * cw, rows * ch), bg)
@@ -247,12 +247,227 @@ def preview(cells, path, cw=18, ch=36, bg=(26, 28, 34)):
                    RIM_BL: (L, T + half_h, L + half_w - 1, T + ch - 1),
                    RIM_BR: (L + half_w, T + half_h, L + cw - 1, T + ch - 1)}[glyph]
             dr.rectangle(list(box), fill=c)
-    img.save(path)
+    if path: img.save(path)
+    return img
+
+
+# ==========================================================================
+# PCB style: compact die + half-block pixel lockup + circuit fan-out
+# ==========================================================================
+N,E,S,W = 1,2,4,8
+BOX = {N|S:"│", E|W:"─", N|E:"└", N|W:"┘", S|E:"┌", S|W:"┐",
+       N|E|S:"├", N|E|W:"┴", N|S|W:"┤", E|S|W:"┬", N|E|S|W:"┼",
+       N:"╹", S:"╻", E:"╺", W:"╸"}
+
+class Board:
+    def __init__(self, cols, rows):
+        self.w, self.h = cols, rows
+        self.mask = [[0]*cols for _ in range(rows)]
+        self.ch = [[None]*cols for _ in range(rows)]
+        self.col = [[0]*cols for _ in range(rows)]
+    def set(self, x, y, bits, cidx, ch=None):
+        if not (0 <= x < self.w and 0 <= y < self.h): return
+        self.mask[y][x] |= bits
+        self.col[y][x] = cidx
+        if ch: self.ch[y][x] = ch
+    def trace(self, pts, cidx, via="\u25cb"):
+        """pts = list of (x,y) polyline nodes; draws orthogonal runs between them"""
+        for i in range(len(pts)-1):
+            (x0,y0), (x1,y1) = pts[i], pts[i+1]
+            dx, dy = (x1>x0)-(x1<x0), (y1>y0)-(y1<y0)
+            x, y = x0, y0
+            while (x,y) != (x1,y1):
+                b = (S if dy>0 else N if dy<0 else 0) | (E if dx>0 else W if dx<0 else 0)
+                self.set(x, y, b, cidx)
+                x, y = x+dx, y+dy
+            self.set(x1, y1, 0, cidx)          # node (may gain bits from other runs)
+        # endpoints
+        for (x,y) in (pts[0], pts[-1]):
+            if 0 <= x < self.w and 0 <= y < self.h:
+                self.ch[y][x] = via; self.mask[y][x] = 0
+    def render(self):
+        out = []
+        for y in range(self.h):
+            row = []
+            for x in range(self.w):
+                ch = self.ch[y][x] or BOX.get(self.mask[y][x], " ")
+                row.append((self.col[y][x], ch))
+            out.append(row)
+        return out
+    def blit(self, cells, x0, y0):
+        for y,row in enumerate(cells):
+            for x,(i,ch) in enumerate(row):
+                if ch == " ": continue
+                X, Y = x0+x, y0+y
+                if 0 <= X < self.w and 0 <= Y < self.h:
+                    self.ch[Y][X] = ch; self.col[Y][X] = i; self.mask[Y][X] = 0
+
+
+# --- half-block pixel font: 1 pixel = 1 cell wide, half a cell tall (2 px / row) ---
+FONT = {
+ "M": ["X.....X",
+       "XX...XX",
+       "X.X.X.X",
+       "X..X..X",
+       "X.....X",
+       "X.....X",
+       "X.....X"],
+ "4": ["....XX.",
+       "...X.X.",
+       "..X..X.",
+       ".X...X.",
+       "XXXXXXX",
+       ".....X.",
+       ".....X."],
+ "P": ["XXX.",
+       "X..X",
+       "XXX.",
+       "X...",
+       "X..."],
+ "R": ["XXX.",
+       "X..X",
+       "XX..",
+       "X.X.",
+       "X..X"],
+ "O": [".XX.",
+       "X..X",
+       "X..X",
+       "X..X",
+       ".XX."],
+}
+HB = {(0,0):" ", (1,0):"\u2580", (0,1):"\u2584", (1,1):"\u2588"}
+
+def blit_font(board, text, x, y, idx, gap=1):
+    """blit a word on a shared baseline; returns the width in cells"""
+    cx = x
+    for t in text:
+        bmp = FONT[t]
+        h = len(bmp); w = len(bmp[0])
+        for c in range(w):
+            for r in range((h + 1)//2):
+                top = 1 if 2*r < h and bmp[2*r][c] == "X" else 0
+                bot = 1 if 2*r+1 < h and bmp[2*r+1][c] == "X" else 0
+                g = HB[(top, bot)]
+                if g != " ": board.set(cx+c, y+r, 0, idx, g)
+        cx += w + gap
+    return cx - x - gap
+
+def lockup_width(text, gap=1):
+    return sum(len(FONT[t]) and len(FONT[t][0]) for t in text) + gap*(len(text)-1)
+
+def build_pcb(COLS=36, ROWS=18, DW=20, DH=11, ink=8, rim=6, trace=3, pad=4, via=5,
+              power=1.7, reach=1.30):
+    ox, oy = (COLS-DW)//2, (ROWS-DH)//2
+    L, R, T, B = ox, ox+DW, oy, oy+DH          # boundary cells: cols L..R-1, rows T..B-1
+    b = Board(COLS, ROWS)
+    N, E, S, W = 1, 2, 4, 8
+    VIA = "\u25cb"
+
+    # ---- die field: radial blue glow out of the bottom-left corner ----
+    for y in range(T+1, B-1):
+        for x in range(L+1, R-1):
+            u = (x-(L+1)+0.5)/(DW-2); v = (y-(T+1)+0.5)/(DH-2)
+            d = math.hypot(u, 1.0-v)/reach
+            t = max(0.0, 1.0-d)**power
+            b.set(x, y, 0, min(5, int(round(t*4.4))), BLOCK)
+
+    # ---- traces: stubs leave the die boundary, join bus rails, end in vias ----
+    def hrun(y, x0, x1, c):
+        for x in range(min(x0,x1), max(x0,x1)+1): b.set(x, y, E|W, c)
+    def vrun(x, y0, y1, c):
+        for y in range(min(y0,y1), max(y0,y1)+1): b.set(x, y, N|S, c)
+    top_cols = list(range(L+2, R-1, 3))
+    bot_cols = list(range(L+3, R-2, 3))
+    lr_rows  = list(range(T+1, B-1, 2))
+    # top rail (row 0) + stubs down to the die
+    hrun(0, L-2, R+1, pad)
+    for x in top_cols:
+        vrun(x, 0, T-1, trace); b.set(x, 0, E|S|W, pad); b.set(x, T, N, rim)
+    b.set(L-2, 0, 0, via, VIA); b.set(R+1, 0, 0, via, VIA)
+    # bottom rail (last row) + stubs up to the die
+    hrun(ROWS-1, L-2, R+1, pad)
+    for x in bot_cols:
+        vrun(x, B, ROWS-1, trace); b.set(x, ROWS-1, N|E|S, pad); b.set(x, B-1, S, rim)
+    b.set(L-2, ROWS-1, 0, via, VIA); b.set(R+1, ROWS-1, 0, via, VIA)
+    # left rail + stubs
+    vrun(2, 0, ROWS-1, pad)
+    for y in lr_rows:
+        hrun(y, 2, L-1, trace); b.set(2, y, N|E|S, pad); b.set(L, y, W, rim)
+    b.set(2, 0, 0, via, VIA); b.set(2, ROWS-1, 0, via, VIA)
+    # right rail + stubs
+    vrun(COLS-3, 0, ROWS-1, pad)
+    for y in lr_rows:
+        hrun(y, R, COLS-3, trace); b.set(COLS-3, y, N|S|W, pad); b.set(R-1, y, E, rim)
+    b.set(COLS-3, 0, 0, via, VIA); b.set(COLS-3, ROWS-1, 0, via, VIA)
+
+    # ---- die rim: hairline frame, junctions resolve automatically ----
+    for x in range(L+1, R-1):
+        b.set(x, T, E|W, rim); b.set(x, B-1, E|W, rim)
+    for y in range(T+1, B-1):
+        b.set(L, y, N|S, rim); b.set(R-1, y, N|S, rim)
+    b.set(L, T, S|E, rim); b.set(R-1, T, S|W, rim)
+    b.set(L, B-1, N|E, rim); b.set(R-1, B-1, N|W, rim)
+
+    # ---- lockup: M4 over PRO ----
+    w_m4, w_pro = lockup_width("M4", 1), lockup_width("PRO", 1)
+    blit_font(b, "M4",  ox + (DW - w_m4)//2,  T + 1, ink, 1)
+    blit_font(b, "PRO", ox + (DW - w_pro)//2, T + 6, ink, 1)
+    return b, (ox, oy, DW, DH)
+
+
+def preview_board(board, path=None, cw=18, ch=36, bg=(26, 28, 34)):
+    from PIL import Image, ImageDraw
+    rows, cols = board.h, board.w
+    img = Image.new("RGB", (cols*cw, rows*ch), bg)
+    dr = ImageDraw.Draw(img)
+    LW = max(1, cw//8)
+    def line(x0,y0,x1,y1,c): dr.line([x0,y0,x1,y1], fill=c, width=LW)
+    for y in range(rows):
+        for x in range(cols):
+            i = board.col[y][x]; ch_ = board.ch[y][x] or BOX.get(board.mask[y][x], " ")
+            c = PALETTE[i]; L, T = x*cw, y*ch; R, B = L+cw-1, T+ch-1; cx, cy = L+cw//2, T+ch//2
+            if ch_ == " ": continue
+            elif ch_ == BLOCK: dr.rectangle([L,T,R,B], fill=c)
+            elif ch_ == "\u2580": dr.rectangle([L,T,R,T+ch//2-1], fill=c)
+            elif ch_ == "\u2584": dr.rectangle([L,T+ch//2,R,B], fill=c)
+            elif ch_ == "\u258c": dr.rectangle([L,T,L+cw//2-1,B], fill=c)
+            elif ch_ == "\u2590": dr.rectangle([L+cw//2,T,R,B], fill=c)
+            elif ch_ in "\u259b\u259c\u2599\u259f\u2596\u2597\u2598\u259d\u259a\u259e":
+                m = {v:k for k,v in QUAD.items()}[ch_]
+                for qy in range(2):
+                    for qx in range(2):
+                        if m & ((1 if qy==0 else 4) << (0 if qx==0 else 1)):
+                            dr.rectangle([L+qx*cw//2, T+qy*ch//2, L+(qx+1)*cw//2-1, T+(qy+1)*ch//2-1], fill=c)
+            elif ch_ in ("\u25cb","\u00b7","\u25cf"):
+                r = cw//3 if ch_ != "\u00b7" else cw//7
+                if ch_ == "\u00b7": dr.ellipse([cx-r,cy-r,cx+r,cy+r], fill=c)
+                else: dr.ellipse([cx-r,cy-r,cx+r,cy+r], outline=c, width=LW)
+            else:
+                bits = {v:k for k,v in BOX.items()}.get(ch_, 0)
+                if bits & N: line(cx, T, cx, cy, c)
+                if bits & S: line(cx, B, cx, cy, c)
+                if bits & E: line(R, cy, cx, cy, c)
+                if bits & W: line(L, cy, cx, cy, c)
+                if not bits: dr.ellipse([cx-LW,cy-LW,cx+LW,cy+LW], fill=c)
+    if path: img.save(path)
+    return img
+
+def emit_board(board):
+    lines = []
+    for y in range(board.h):
+        s = ""
+        for x in range(board.w):
+            i = board.col[y][x]; ch_ = board.ch[y][x] or BOX.get(board.mask[y][x], " ")
+            s += ("$%d%s" % (i+1, ch_)) if ch_ != " " else " "
+        lines.append(s)
+    return "\n".join(lines) + "\n"
+
 
 def main():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     ap = argparse.ArgumentParser()
-    ap.add_argument("--size", choices=list(SIZES), default="full")
+    ap.add_argument("--style", choices=["pcb", "die"], default="pcb")
+    ap.add_argument("--size", choices=["pcb36", "pcb32"] + list(SIZES), default="pcb36")
     ap.add_argument("--apple", action="store_true", help="force the Apple mark into the lockup")
     ap.add_argument("-o", "--output", default=None)
     ap.add_argument("--preview", default=None)
@@ -261,22 +476,32 @@ def main():
     ap.add_argument("--power", type=float, default=1.55)
     ap.add_argument("--reach", type=float, default=1.16)
     a = ap.parse_args()
-    tag = {"small": "_small", "mark": "_mark"}.get(a.size, "")
+    tag = {"pcb32": "_small", "small": "_small", "mark": "_mark"}.get(a.size, "")
     out = a.output or os.path.join(here, "themes", "m4pro%s.txt" % tag)
-    cells = build(a.size, power=a.power, reach=a.reach, apple=(12, 7) if a.apple else None)
+    PCB = {"pcb36": dict(COLS=36, ROWS=17, DW=20, DH=11),
+           "pcb32": dict(COLS=32, ROWS=17, DW=20, DH=11)}
+    board = None
+    if a.size in PCB:
+        board = build_pcb(**PCB[a.size], power=a.power, reach=a.reach)[0]
+        grid = board.render()
+        cells = None
+    else:
+        cells = build(a.size, power=a.power, reach=a.reach, apple=(12, 7) if a.apple else None)
+        grid = cells
     os.makedirs(os.path.dirname(out), exist_ok=True)
+    text = emit_board(board) if board else emit(cells, a.mono)
     with open(out, "w", encoding="utf-8") as f:
-        f.write(emit(cells, a.mono))
-    print("wrote %s  (%dx%d)" % (out, len(cells[0]), len(cells)))
+        f.write(text)
+    print("wrote %s  (%dx%d)" % (out, len(grid[0]), len(grid)))
     pre = a.preview or os.path.join(here, "assets", "preview%s.png" % tag)
     if not a.mono:
         try:
-            preview(cells, pre); print("wrote %s" % pre)
+            (preview_board(board, pre) if board else preview(cells, pre)); print("wrote %s" % pre)
         except ImportError:
             print("Pillow missing: preview skipped", file=sys.stderr)
     if a.ascii_preview:
         ramp = " .:-=+*#%@"
-        for row in cells: print("".join(ramp[i] if glyph == BLOCK else "X" for i, glyph in row))
+        for row in grid: print("".join(ramp[i] if gl == BLOCK else gl for i, gl in row))
 
 if __name__ == "__main__":
     main()
