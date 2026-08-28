@@ -165,23 +165,27 @@ RIM_T, RIM_B, RIM_L, RIM_R = "\u2580", "\u2584", "\u258c", "\u2590"
 RIM_TL, RIM_TR, RIM_BL, RIM_BR = "\u259b", "\u259c", "\u2599", "\u259f"
 
 SIZES = {
-    #            cols rows  apple   M     4     PRO    gaps(a-M,M-4,P-R)
-    "full":  dict(cols=38, rows=19, apple=(12, 7), m=(9, 7), f=(8, 7), pro=(7, 4),
+    #  cols rows  apple  M     4     PRO     gaps(apple-M, M-4, P-R)  pad_top  pad_pro
+    "full":  dict(cols=36, rows=18, apple=None,       m=(11, 6), f=(9, 6),  pro=(6, 5),
+                  gaps=(2, 1, 1), pad_top=3, pad_pro=1),
+    "small": dict(cols=32, rows=16, apple=None,       m=(9, 5),  f=(7, 5),  pro=(5, 5),
+                  gaps=(2, 1, 1), pad_top=2, pad_pro=1),
+    # previous revision, kept for comparison / people who like the mark in the fetch
+    "mark":  dict(cols=38, rows=19, apple=(12, 7),    m=(9, 7),  f=(8, 7),  pro=(7, 4),
                   gaps=(2, 1, 2), pad_top=3, pad_pro=2),
-    "small": dict(cols=34, rows=17, apple=(11, 7), m=(8, 6), f=(7, 6), pro=(6, 4),
-                  gaps=(2, 1, 2), pad_top=2, pad_pro=1),
 }
 
-def build(size="full", ink=INK, rim=RIM, power=1.55, reach=1.16):
+def build(size="full", ink=INK, rim=RIM, power=1.55, reach=1.16, apple=None):
     sp = SIZES[size]
     cols, rows = sp["cols"], sp["rows"]
+    if apple is None: apple = sp["apple"]
     g = die_field(cols, rows, power, reach)
     cells = [[(v, BLOCK) for v in row] for row in g]
 
     def put(x, y, i, glyph=BLOCK):
         if 0 <= x < cols and 0 <= y < rows: cells[y][x] = (i, glyph)
 
-    # ---- package rim (hairline) ----
+    # ---- package rim (continuous hairline frame) ----
     for x in range(cols):
         put(x, 0, rim, RIM_T); put(x, rows - 1, rim, RIM_B)
     for y in range(rows):
@@ -189,19 +193,21 @@ def build(size="full", ink=INK, rim=RIM, power=1.55, reach=1.16):
     put(0, 0, rim, RIM_TL); put(cols - 1, 0, rim, RIM_TR)
     put(0, rows - 1, rim, RIM_BL); put(cols - 1, rows - 1, rim, RIM_BR)
 
-    # ---- lockup: apple + M + 4 ----
-    aw, ah = sp["apple"]; mw, mh = sp["m"]; fw, fh = sp["f"]
+    aw, ah = apple if apple else (0, 0)
+    mw, mh = sp["m"]; fw, fh = sp["f"]
     g1, g2, g3 = sp["gaps"]
-    total = aw + g1 + mw + g2 + fw
+    total = (aw + g1 if aw else 0) + mw + g2 + fw
     ox = (cols - total) // 2
-    oy = sp["pad_top"]; base = oy + ah
+    oy = sp["pad_top"]; base = oy + max(ah, mh)
+
     def blit(bmp, x, y):
         for cy, row in enumerate(bmp):
             for cx, v in enumerate(row):
                 if v: put(x + cx, y + cy, ink)
-    blit(glyph_apple(aw, ah), ox, oy)
-    blit(glyph_M(mw, mh), ox + aw + g1, base - mh)
-    blit(glyph_4(fw, fh), ox + aw + g1 + mw + g2, base - fh)
+
+    if aw: blit(glyph_apple(aw, ah), ox, oy)
+    blit(glyph_M(mw, mh), ox + (aw + g1 if aw else 0), base - mh)
+    blit(glyph_4(fw, fh), ox + (aw + g1 if aw else 0) + mw + g2, base - fh)
 
     # ---- PRO ----
     pw, ph = sp["pro"]
@@ -247,6 +253,7 @@ def main():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     ap = argparse.ArgumentParser()
     ap.add_argument("--size", choices=list(SIZES), default="full")
+    ap.add_argument("--apple", action="store_true", help="force the Apple mark into the lockup")
     ap.add_argument("-o", "--output", default=None)
     ap.add_argument("--preview", default=None)
     ap.add_argument("--mono", action="store_true", help="emit a single-colour logo ($1 only)")
@@ -254,13 +261,14 @@ def main():
     ap.add_argument("--power", type=float, default=1.55)
     ap.add_argument("--reach", type=float, default=1.16)
     a = ap.parse_args()
-    out = a.output or os.path.join(here, "themes", "m4pro%s.txt" % ("_small" if a.size == "small" else ""))
-    cells = build(a.size, power=a.power, reach=a.reach)
+    tag = {"small": "_small", "mark": "_mark"}.get(a.size, "")
+    out = a.output or os.path.join(here, "themes", "m4pro%s.txt" % tag)
+    cells = build(a.size, power=a.power, reach=a.reach, apple=(12, 7) if a.apple else None)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         f.write(emit(cells, a.mono))
     print("wrote %s  (%dx%d)" % (out, len(cells[0]), len(cells)))
-    pre = a.preview or os.path.join(here, "assets", "preview%s.png" % ("_small" if a.size == "small" else ""))
+    pre = a.preview or os.path.join(here, "assets", "preview%s.png" % tag)
     if not a.mono:
         try:
             preview(cells, pre); print("wrote %s" % pre)
