@@ -61,8 +61,8 @@ fastfetch -c themes/config.jsonc --logo-type file --logo themes/m4pro.txt
 ## Regenerate / customise
 
 ```sh
-python3 tools/gen_logo.py --size pcb           # 28x16 -> themes/m4pro.txt + assets/preview.png
-python3 tools/gen_logo.py --size pcb32         # 34x18 -> themes/m4pro_small.txt
+python3 tools/gen_logo.py --size pcb           # 32x16 square -> themes/m4pro.txt + assets/preview.png
+python3 tools/gen_logo.py --size pcb32         # 36x18 square -> themes/m4pro_small.txt
 python3 tools/gen_logo.py --size pcb --lockup caps     # small-caps wordmark
 python3 tools/gen_logo.py --size pcb --lockup super    # superscript wordmark
 python3 tools/gen_logo.py --size pcb --power 2.4 --reach 1.6   # softer glow
@@ -82,8 +82,8 @@ repository (it is Apple's copyrighted image), the logo is drawn from geometry.
 ## Files
 
 ```
-themes/m4pro.txt          28x16 PCB logo, $1..$9 colour placeholders
-themes/m4pro_small.txt    34x18 variant
+themes/m4pro.txt          32x16 square PCB logo, $1..$9 colour placeholders
+themes/m4pro_small.txt    36x18 variant
 themes/config.jsonc       fastfetch config (logo palette + key/title colours + structure)
 tools/gen_logo.py         the generator
 bin/install.sh            install / bin/uninstall.sh remove

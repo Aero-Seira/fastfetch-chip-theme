@@ -356,13 +356,14 @@ def lockup_width(text, gap=1):
     return sum(len(FONT[t]) and len(FONT[t][0]) for t in text) + gap*(len(text)-1)
 
 # the wordmark written with literal characters (no fake font at all)
+# both lines of every lockup are the same width, so the wordmark is justified
 LOCKUPS = {
-    "ascii": ("M 4", "PRO"),      # plain ASCII - renders in every font
-    "caps":  ("\u1d0d 4", "\u1d18\u0280\u1d0f"),   # small caps
-    "super": ("\u1d39 \u2074", "\u1d3e\u1d3f\u1d3c"),   # superscript caps
+    "ascii": ("\u25cf M 4", "P R O"),                       # plain ASCII - renders everywhere
+    "caps":  ("\u25cf \u1d0d 4", "\u1d18 \u0280 \u1d0f"),           # small caps
+    "super": ("\u25cf \u1d39 \u2074", "\u1d3e \u1d3f \u1d3c"),           # superscript caps
 }
 
-def build_pcb(COLS=28, ROWS=16, DW=14, DH=7, ink=8, rim=6, trace=3, pad=4, via=5,
+def build_pcb(COLS=32, ROWS=16, DW=14, DH=7, ink=8, rim=6, trace=3, pad=4, via=5,
               power=2.0, reach=1.45, lockup="ascii"):
     ox, oy = (COLS-DW)//2, (ROWS-DH)//2
     L, R, T, B = ox, ox+DW, oy, oy+DH          # boundary cells: cols L..R-1, rows T..B-1
@@ -420,7 +421,7 @@ def build_pcb(COLS=28, ROWS=16, DW=14, DH=7, ink=8, rim=6, trace=3, pad=4, via=5
     top = T + 1 + max(0, (DH - 2 - 3) // 2)
     for i, line in enumerate((l1, l2)):
         y = top + i * 2
-        x = ox + (DW - len(line)) // 2
+        x = ox + (DW - len(line)) // 2          # equal widths -> same x -> justified
         for c, ch in enumerate(line):
             if ch != " ": b.set(x + c, y, 0, ink, ch)
     return b, (ox, oy, DW, DH)
@@ -512,8 +513,9 @@ def main():
     a = ap.parse_args()
     tag = {"pcb32": "_small", "small": "_small", "mark": "_mark"}.get(a.size, "")
     out = a.output or os.path.join(here, "themes", "m4pro%s.txt" % tag)
-    PCB = {"pcb":   dict(COLS=28, ROWS=16, DW=14, DH=7),
-           "pcb32": dict(COLS=34, ROWS=18, DW=16, DH=8)}
+    # COLS = 2*ROWS keeps the whole fetch square (1 cell = 1 x 2 units)
+    PCB = {"pcb":   dict(COLS=32, ROWS=16, DW=14, DH=7),
+           "pcb32": dict(COLS=36, ROWS=18, DW=16, DH=8)}
     board = None
     if a.size in PCB:
         board = build_pcb(**PCB[a.size], power=a.power, reach=a.reach, lockup=a.lockup)[0]
