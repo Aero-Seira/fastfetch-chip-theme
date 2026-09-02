@@ -24,6 +24,8 @@ Usage:
     python3 tools/gen_logo.py --detect                # chip for this machine
     python3 tools/gen_logo.py --list                  # registered chips
     python3 tools/gen_logo.py --all                   # regenerate everything
+    python3 tools/gen_logo.py --auto                  # model-specific logo
+    python3 tools/gen_logo.py --auto --dest ~/.config/fastfetch
     python3 tools/gen_logo.py --chip i7               # one chip, pcb + small
     python3 tools/gen_logo.py --chip m4pro --size pcb [-o out.txt]
 """
