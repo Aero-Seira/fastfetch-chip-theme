@@ -279,8 +279,51 @@ def detect(brand=None):
     return info["chip_id"] if info else None
 
 
+def windows_cpu_name():
+    """CPU brand string from the registry, e.g. "Intel(R) Core(TM) Ultra 9 285H".
+
+    Registry values need no WMI service, no subprocess and no third-party
+    module, and wmic.exe is gone in Windows 11 24H2, so the registry is the
+    most reliable source there. One subkey per logical CPU; first name wins.
+    """
+    try:
+        import winreg
+    except ImportError:
+        return ""
+    base = r"HARDWARE\DESCRIPTION\System\CentralProcessor"
+    try:
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, base)
+    except OSError:
+        return ""
+    try:
+        for i in range(winreg.QueryInfoKey(key)[0]):
+            try:
+                cpu = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                     base + "\\" + winreg.EnumKey(key, i))
+            except OSError:
+                continue
+            try:
+                for value in ("ProcessorNameString", "BrandString"):
+                    try:
+                        name = str(winreg.QueryValueEx(cpu, value)[0]).strip()
+                    except OSError:
+                        continue
+                    if len(name) > 3:
+                        return name
+            finally:
+                cpu.Close()
+    finally:
+        key.Close()
+    return ""
+
+
 def host_cpu_name():
-    if platform.system() == "Darwin":
+    system = platform.system()
+    if system == "Windows":
+        name = windows_cpu_name()
+        if name:
+            return name
+    if system == "Darwin":
         try:
             return subprocess.check_output(
                 ["sysctl", "-n", "machdep.cpu.brand_string"], text=True).strip()

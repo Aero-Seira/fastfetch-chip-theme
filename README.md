@@ -14,7 +14,7 @@ follows the vendor's marketing design, and wordmarks are literal characters
 ## How it works
 
 ```text
-CPU brand string           (sysctl machdep.cpu.brand_string / /proc/cpuinfo)
+CPU brand string           (sysctl / /proc/cpuinfo / registry)
       |  tools/chips.py: identify()
       v
 { family, tier, exact model }            e.g. intel / i7 / "13700K"
@@ -73,50 +73,109 @@ dies (`dual` flag in the registry).
 
 ## Install
 
-Identify the host CPU (tier + exact model) and generate a personalised theme
-straight into the fastfetch config dir (default size `full`):
-
-```sh
-bin/install.sh        # needs python3; falls back to pre-generated themes
-```
-
-The auto path detects the CPU via `sysctl` (macOS) or `/proc/cpuinfo`
-(Linux), prints the model number into the wordmark and picks the matching
-palette, die artwork and form factor. Without python3 (or for unknown CPUs)
-it falls back to shell-based detection and the pre-generated themes.
-
-Install a specific chip and size:
-
-```sh
-bin/install.sh i7 full
-bin/install.sh ryzen9 small
-```
-
-Backward-compatible shorthand is still supported:
-
-```sh
-bin/install.sh small
-```
-
-This writes `~/.config/fastfetch/config.jsonc` (with the chip's brand palette
-baked in) and the selected logo file(s), then:
+Both installers take `[chip] [full|small]`, default to the `full` size, auto
+detect the host CPU when no chip is given and write `<config dir>/config.jsonc`
+(the chip's brand palette baked in) plus the selected logo file(s). Then:
 
 ```sh
 fastfetch
 ```
 
-Uninstall managed files (config + every installed chip logo) with:
+The auto path identifies tier *and* exact model, so the wordmark carries your
+model number (`CORE ULTRA 9 / 285H`, `RYZEN 7 / 7800X3D`) with the matching
+palette, die artwork and form factor. That needs Python 3 (`python3`, or
+`py -3` on Windows). Without Python -- or for an unrecognised CPU -- both
+installers fall back to the built-in detection plus the pre-generated themes
+in `chips/`: same artwork and palette, generic wordmark.
+
+Shorthand for the size alone works too (`bin/install.sh small`,
+`bin\install.ps1 small`).
+
+### macOS / Linux
 
 ```sh
-bin/uninstall.sh
+bin/install.sh                  # auto-detect (needs python3; see above)
+bin/install.sh i7 full
+bin/install.sh ryzen9 small
+bin/uninstall.sh                # remove the config + every installed chip logo
 ```
 
+Config dir: `${XDG_CONFIG_HOME:-~/.config}/fastfetch`. The CPU brand string is
+read with `sysctl machdep.cpu.brand_string` on macOS and `/proc/cpuinfo` on
+Linux.
+
+### Windows
+
+`bin\install.ps1` is the native installer: PowerShell 5.1 or newer, no sh,
+no WSL and no Git Bash required.
+
+```powershell
+winget install Fastfetch-cli.Fastfetch          # skip if fastfetch is installed
+git clone https://github.com/Aero-Seira/fastfetch-chip-theme
+cd fastfetch-chip-theme
+powershell -NoProfile -ExecutionPolicy Bypass -File .\bin\install.ps1
+fastfetch
+```
+
+Without `git`, from a zip of `main` (keep the folder: `bin\uninstall.ps1` reads the chip list from it):
+
+```powershell
+$zip = "$env:TEMP\fastfetch-chip-theme.zip"
+Invoke-WebRequest https://github.com/Aero-Seira/fastfetch-chip-theme/archive/refs/heads/main.zip -OutFile $zip
+Expand-Archive $zip "$env:TEMP\fastfetch-chip-theme" -Force
+cd "$env:TEMP\fastfetch-chip-theme\fastfetch-chip-theme-main"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\bin\install.ps1
+```
+
+A downloaded copy of a script can carry the "blocked" flag; `Unblock-File
+.\bin\install.ps1` clears it (the `-ExecutionPolicy Bypass` above covers the
+default `Restricted` policy).
+
+It installs into `%APPDATA%\fastfetch`, which is the first per-user directory
+fastfetch searches -- confirm with `fastfetch --list-config-paths`. A config
+that is already there is kept as `config.jsonc.bak`.
+
+```powershell
+.\bin\install.ps1                              # auto-detect this CPU
+.\bin\install.ps1 i7 full                      # a specific chip and size
+.\bin\install.ps1 -List                        # what is available
+.\bin\install.ps1 -Dest D:\ff                  # another config dir
+.\bin\install.ps1 -Brand "AMD Ryzen 7 7800X3D Processor"
+.\bin\install.ps1 -Python C:\Python312\python.exe
+.\bin\uninstall.ps1                            # remove managed files
+```
+
+If `-Chip` is omitted the brand string comes from
+`HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0` (`ProcessorNameString`),
+because `wmic.exe` was removed in Windows 11 24H2; `-Brand` overrides it. Logo
+paths are written into `config.jsonc` with forward slashes -- JSON does not
+allow bare backslashes.
+
+In Git Bash, `bin/install.sh` detects the MSYS environment and forwards to
+`bin/install.ps1` (native fastfetch ignores `~/.config`). In WSL the shell
+installer keeps its Linux meaning and themes the WSL fastfetch.
+
 ## Try without installing
+
+Preview a chip straight from the repository -- nothing is written to the real
+fastfetch config:
 
 ```sh
 sed "s|@LOGO@|$PWD/chips/i7/i7.txt|" chips/i7/config.jsonc > /tmp/ff.jsonc
 fastfetch -c /tmp/ff.jsonc
 ```
+
+```powershell
+$cfg = Join-Path $env:TEMP 'ff.jsonc'
+$text = (Get-Content .\chips\i7\config.jsonc -Raw).Replace('@LOGO@', "$PWD\chips\i7\i7.txt".Replace('\', '/'))
+[IO.File]::WriteAllText($cfg, $text, (New-Object Text.UTF8Encoding($false)))
+fastfetch -c $cfg
+```
+
+`tools/gen_logo.py --auto` prints a model-specific logo of this CPU to stdout
+if you only want to look at the artwork. On Windows set
+`[Console]::OutputEncoding = [Text.Encoding]::UTF8` first (the logo is UTF-8),
+or use `--dest` to write it to a file.
 
 ## Generate and customize chip themes
 
@@ -135,8 +194,10 @@ python3 tools/gen_logo.py --chip ryzen9 --field glow   # override die artwork
 
 Each chip folder gets `<chip>.txt`, `<chip>_small.txt`, both previews and a
 ready-to-use `config.jsonc` (only `@LOGO@` is left for `bin/install.sh`).
-The generator remains geometry-based and self-contained. Python 3 is required;
-`Pillow` is optional for preview PNG output.
+The generator remains geometry-based and self-contained. Python 3 is required
+(`py -3 tools/gen_logo.py ...` on Windows); `Pillow` is optional for preview
+PNG output. Every path it writes into a `config.jsonc` uses forward slashes, so
+the same generator works for `~/.config/fastfetch` and `%APPDATA%\fastfetch`.
 
 ### CLI reference
 
@@ -185,7 +246,8 @@ title = `$8`, output = `$7`, separator = `$4`).
 2. Map its `family` to a die field in `FAMILY_FIELDS` (`glow` / `band` /
    `ring`), or add a new field function in `tools/gen_logo.py`.
 3. Extend `identify()`/`wordmark()` if the model number needs new parsing,
-   and add the fallback glob pattern to `detect_chip()` in `bin/install.sh`.
+   and add the fallback pattern to `detect_chip()` in `bin/install.sh` and to
+   `$ChipPatterns` in `bin/install.ps1`.
 4. Run `python3 tools/gen_logo.py --all` and check the previews.
 
 ## Repository layout
@@ -199,6 +261,8 @@ tools/
   chips.py              chip registry: wordmarks, palettes, CPU identification
   gen_logo.py           geometry generator (fields, PCB routing, previews)
 bin/
-  install.sh            auto-detect + install selected chip theme
+  install.sh            macOS / Linux: auto-detect + install selected chip theme
+  install.ps1           Windows: same thing in native PowerShell
   uninstall.sh          remove managed fastfetch theme files
+  uninstall.ps1         same for Windows
 ```

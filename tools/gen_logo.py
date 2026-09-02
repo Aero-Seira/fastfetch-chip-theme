@@ -26,6 +26,7 @@ Usage:
     python3 tools/gen_logo.py --all                   # regenerate everything
     python3 tools/gen_logo.py --auto                  # model-specific logo
     python3 tools/gen_logo.py --auto --dest ~/.config/fastfetch
+    py -3 tools/gen_logo.py --auto --dest %APPDATA%/fastfetch  # Windows
     python3 tools/gen_logo.py --chip i7               # one chip, pcb + small
     python3 tools/gen_logo.py --chip m4pro --size pcb [-o out.txt]
 """
@@ -33,6 +34,19 @@ import argparse, math, os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import chips as registry
+
+# Windows: redirected stdout uses the OEM code page, so a chip label holding
+# U+25CF would raise UnicodeEncodeError -- replace unmappable chars instead.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
+
+def json_path(path):
+    """Filesystem path -> JSON string (bare Windows backslashes are illegal)."""
+    return path.replace("\\", "/")
 
 # default palette (Apple Pro blue); every chip normally brings its own
 PALETTE = registry.PALETTES["apple-blue"]
@@ -525,9 +539,9 @@ def main():
         with open(cfg, encoding="utf-8") as f:
             txt = f.read()
         with open(cfg, "w", encoding="utf-8") as f:
-            f.write(txt.replace("@LOGO@", logo))
+            f.write(txt.replace("@LOGO@", json_path(logo)))
         print("installed:")
-        print("  %s  (logo -> %s)" % (cfg, logo))
+        print("  %s  (logo -> %s)" % (cfg, json_path(logo)))
         print("  %s" % os.path.join(a.dest, chip + ".txt"))
         print("  %s" % os.path.join(a.dest, chip + "_small.txt"))
         print("run:  fastfetch")

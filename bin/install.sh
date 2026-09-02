@@ -25,6 +25,21 @@ case "$SIZE" in
     ;;
 esac
 
+# --- Git Bash / MSYS / Cygwin: hand Windows over to the PS1 installer -------
+# Native (non-WSL) fastfetch does not read $HOME/.config, so bin/install.ps1
+# owns that platform and knows %APPDATA%\fastfetch.
+case "$(uname -s 2>/dev/null)${MSYSTEM:-}" in   # set by Git Bash / MSYS / Cygwin
+  MINGW*|MSYS*|CYGWIN*)
+    if command -v powershell.exe >/dev/null 2>&1 \
+       && command -v cygpath >/dev/null 2>&1 \
+       && [ -f "$ROOT/bin/install.ps1" ]; then
+      exec powershell.exe -NoProfile -ExecutionPolicy Bypass \
+        -File "$(cygpath -w "$ROOT/bin/install.ps1")" "$CHIP" "$SIZE"
+    fi
+    echo "no powershell.exe here; run bin\\install.ps1 instead" >&2
+    ;;
+esac
+
 # --- auto-detect the chip from the CPU brand string -----------------------
 detect_chip() {
   brand=""
