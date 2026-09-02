@@ -36,22 +36,35 @@ detect_chip() {
   case "$norm" in
     # Apple silicon: specific tiers first ("apple m4" also matches "apple m4 pro")
     *"apple m1 ultra"*) echo m1ultra ;;  *"apple m2 ultra"*) echo m2ultra ;;
-    *"apple m3 ultra"*) echo m3ultra ;;
+    *"apple m3 ultra"*) echo m3ultra ;;  *"apple m5 ultra"*) echo m5ultra ;;
     *"apple m1 max"*)   echo m1max   ;;  *"apple m2 max"*)   echo m2max   ;;
     *"apple m3 max"*)   echo m3max   ;;  *"apple m4 max"*)   echo m4max   ;;
+    *"apple m5 max"*)   echo m5max   ;;
     *"apple m1 pro"*)   echo m1pro   ;;  *"apple m2 pro"*)   echo m2pro   ;;
     *"apple m3 pro"*)   echo m3pro   ;;  *"apple m4 pro"*)   echo m4pro   ;;
+    *"apple m5 pro"*)   echo m5pro   ;;
     *"apple m1"*)       echo m1      ;;  *"apple m2"*)       echo m2      ;;
     *"apple m3"*)       echo m3      ;;  *"apple m4"*)       echo m4      ;;
+    *"apple m5"*)       echo m5      ;;  *"apple m6"*)       echo m6      ;;
+    # Intel Core Ultra (Series 1/2, "Core Ultra 7 155H")
+    *"core ultra 9"*) echo ultra9 ;;
+    *"core ultra 7"*) echo ultra7 ;;
+    *"core ultra 5"*) echo ultra5 ;;
+    # Intel Xeon
+    *xeon*) echo xeon ;;
     # Intel Core i-series ("13th Gen Intel Core i7-13700K")
     *"core i9"*|*i9-?*) echo i9 ;;
     *"core i7"*|*i7-?*) echo i7 ;;
     *"core i5"*|*i5-?*) echo i5 ;;
     *"core i3"*|*i3-?*) echo i3 ;;
+    # AMD Threadripper / EPYC before Ryzen (brand strings may mix names)
+    *threadripper*) echo threadripper ;;
+    *epyc*) echo epyc ;;
     # AMD Ryzen
     *"ryzen 9"*|*ryzen9*) echo ryzen9 ;;
     *"ryzen 7"*|*ryzen7*) echo ryzen7 ;;
     *"ryzen 5"*|*ryzen5*) echo ryzen5 ;;
+    *"ryzen 3"*|*ryzen3*) echo ryzen3 ;;
     *) echo "" ;;
   esac
 }

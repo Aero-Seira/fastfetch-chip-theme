@@ -16,18 +16,22 @@ follows the vendor's marketing design, and wordmarks are literal characters
 
 ## Chips
 
-All 22 chips are generated from the registry in `tools/chips.py` — adding a
+All 34 chips are generated from the registry in `tools/chips.py` — adding a
 new chip is a registry entry (wordmark + palette + CPU match patterns), not
 new drawing code.
 
 | Vendor | Chips | Palette |
 |---|---|---|
-| Apple | `m1` `m2` `m3` `m4` | graphite silver |
-| Apple Pro | `m1pro` `m2pro` `m3pro` `m4pro` | blue |
-| Apple Max | `m1max` `m2max` `m3max` `m4max` | violet |
-| Apple Ultra | `m1ultra` `m2ultra` `m3ultra` | copper |
-| Intel | `i3` `i5` `i7` `i9` | sky / Intel blue / indigo / carbon |
-| AMD | `ryzen5` `ryzen7` `ryzen9` | amber / orange / red |
+| Apple | `m1` .. `m6` | graphite silver |
+| Apple Pro | `m1pro` .. `m5pro` | blue |
+| Apple Max | `m1max` .. `m5max` | violet |
+| Apple Ultra | `m1ultra` `m2ultra` `m3ultra` `m5ultra` | copper |
+| Intel Core | `i3` `i5` `i7` `i9` | sky / Intel blue / indigo / carbon |
+| Intel Core Ultra | `ultra5` `ultra7` `ultra9` | blue-violet gradient |
+| Intel Xeon | `xeon` | workstation slate |
+| AMD Ryzen | `ryzen3` `ryzen5` `ryzen7` `ryzen9` | gold / amber / orange / red |
+| AMD Threadripper | `threadripper` | rust |
+| AMD EPYC | `epyc` | datacenter teal |
 
 Tier colours follow the vendors' badge designs (Intel blue `#0068B5` family,
 Ryzen orange-to-red, Apple's graphite/space-black keynote renders).

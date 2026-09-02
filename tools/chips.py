@@ -55,6 +55,21 @@ PALETTES = {
                          "#D86A1E", "#F2924E", "#F6BC8E", "#FADDC4", "#FFF6EC"),
     "amd-red":      _pal("#1C0A0A", "#320F10", "#641418", "#A81E24",
                          "#DC2830", "#EE5A60", "#F29A9C", "#FAD2D2", "#FFF0F0"),
+    # Core Ultra badge: blue -> violet gradient
+    "intel-ultra":  _pal("#0B0E1E", "#151A3C", "#27306E", "#3E4CB6",
+                         "#6372E2", "#92A4F4", "#C0CBF8", "#E2E7FB", "#F8F9FF"),
+    # Xeon: slate / workstation silver
+    "intel-xeon":   _pal("#0B0D12", "#151A24", "#242E3E", "#35455E",
+                         "#4E6382", "#7E94B2", "#B4C4D6", "#E2EAF2", "#FAFCFF"),
+    # Ryzen 3: gold
+    "amd-gold":     _pal("#1C1204", "#332408", "#6E4A10", "#B07A1A",
+                         "#DCA02E", "#F0C25E", "#F6DC9C", "#FAEECB", "#FFFBEF"),
+    # Threadripper: deep rust orange
+    "amd-rust":     _pal("#180C05", "#2B1609", "#562E0E", "#944E15",
+                         "#C4701E", "#EA9A48", "#F4C48C", "#F9E2C6", "#FFF6EA"),
+    # EPYC: datacenter teal
+    "amd-teal":     _pal("#07110C", "#0C2016", "#13442C", "#1A6E44",
+                         "#24A060", "#46C886", "#8EE2B4", "#C4F0D6", "#EFFAF2"),
 }
 
 # vendor -> die artwork style (see module docstring)
@@ -94,6 +109,30 @@ _apple(3, [("ultra", "Ultra", "U L T R A", "apple-copper"),
 _apple(4, [("max", "Max", "M A X", "apple-violet"),
            ("pro", "Pro", "P R O", "apple-blue"),
            ("", "", "", "apple-silver")])
+_apple(5, [("ultra", "Ultra", "U L T R A", "apple-copper"),
+           ("max", "Max", "M A X", "apple-violet"),
+           ("pro", "Pro", "P R O", "apple-blue"),
+           ("", "", "", "apple-silver")])
+_apple(6, [("", "", "", "apple-silver")])
+
+for n in (9, 7, 5):
+    CHIPS["ultra%d" % n] = dict(
+        label="Intel Core Ultra %d" % n,
+        family="intel",
+        line1="intel",
+        line2="CORE ULTRA %d" % n,
+        palette="intel-ultra",
+        match=[r"core\s+ultra\s+%d\b" % n],
+    )
+
+CHIPS["xeon"] = dict(
+    label="Intel Xeon",
+    family="intel",
+    line1="intel",
+    line2="XEON",
+    palette="intel-xeon",
+    match=[r"xeon"],
+)
 
 for n, pal in ((9, "intel-carbon"), (7, "intel-indigo"),
                (5, "intel-blue"), (3, "intel-sky")):
@@ -103,11 +142,29 @@ for n, pal in ((9, "intel-carbon"), (7, "intel-indigo"),
         line1="intel",
         line2="CORE i%d" % n,
         palette=pal,
-        match=[r"core\s*\(tm\)\s*i%d\b" % n, r"\bi%d-\d" % n,
-               r"core\s+ultra\s+%d\b" % n],
+        match=[r"core\s*\(tm\)\s*i%d\b" % n, r"\bi%d-\d" % n],
     )
 
-for n, pal in ((9, "amd-red"), (7, "amd-orange"), (5, "amd-amber")):
+CHIPS["threadripper"] = dict(
+    label="AMD Ryzen Threadripper",
+    family="amd",
+    line1="AMD",
+    line2="THREADRIPPER",
+    palette="amd-rust",
+    match=[r"threadripper"],
+)
+
+CHIPS["epyc"] = dict(
+    label="AMD EPYC",
+    family="amd",
+    line1="AMD",
+    line2="EPYC",
+    palette="amd-teal",
+    match=[r"epyc"],
+)
+
+for n, pal in ((9, "amd-red"), (7, "amd-orange"),
+               (5, "amd-amber"), (3, "amd-gold")):
     CHIPS["ryzen%d" % n] = dict(
         label="AMD Ryzen %d" % n,
         family="amd",
@@ -151,16 +208,34 @@ def identify(brand=None):
             info["model"] = "M%s%s" % (m.group(1),
                                        " " + m.group(2).title() if m.group(2) else "")
     elif spec["family"] == "intel":
-        m = re.search(r"core\s*(?:\(tm\))?\s+(ultra\s+)?(i)?([3579])[-\s](\w+)",
-                      raw, re.I)
-        if m:
-            info["tier"] = ("ultra" if m.group(1) else "i") + m.group(3)
-            info["model"] = m.group(4).upper()
+        if chip_id == "xeon":
+            m = re.search(r"xeon\s*(?:\(r\))?\s*([A-Za-z]-\d{4}\w*|\d{4}\w*)",
+                          raw, re.I)
+            if m:
+                info["tier"] = "xeon"
+                info["model"] = m.group(1).upper()
+        else:
+            m = re.search(r"core\s*(?:\(tm\))?\s+(ultra\s+)?(i)?([3579])[-\s](\w+)",
+                          raw, re.I)
+            if m:
+                info["tier"] = ("ultra" if m.group(1) else "i") + m.group(3)
+                info["model"] = m.group(4).upper()
     elif spec["family"] == "amd":
-        m = re.search(r"ryzen\s+([3579])\s+(\w+)", raw, re.I)
-        if m:
-            info["tier"] = m.group(1)
-            info["model"] = m.group(2).upper()
+        if chip_id == "threadripper":
+            m = re.search(r"threadripper\s*(?:pro\s+)?(\d{4}\w*)", raw, re.I)
+            if m:
+                info["tier"] = "tr"
+                info["model"] = m.group(1).upper()
+        elif chip_id == "epyc":
+            m = re.search(r"epyc\s+(\w+)", raw, re.I)
+            if m:
+                info["tier"] = "epyc"
+                info["model"] = m.group(1).upper()
+        else:
+            m = re.search(r"ryzen\s+([3579])\s+(\w+)", raw, re.I)
+            if m:
+                info["tier"] = m.group(1)
+                info["model"] = m.group(2).upper()
     return info
 
 
@@ -174,10 +249,16 @@ def wordmark(info):
     if fam == "intel":
         if info["tier"] and info["tier"].startswith("ultra"):
             return "CORE ULTRA " + info["tier"][-1], model or ""
+        if info["tier"] == "xeon":
+            return ("XEON", model) if model else (spec["line1"], spec["line2"])
         if model:
             return "CORE i" + info["tier"][-1], model
         return spec["line1"], spec["line2"]
     if fam == "amd":
+        if info["tier"] == "tr":
+            return ("THREADRIPPER", model) if model else (spec["line1"], spec["line2"])
+        if info["tier"] == "epyc":
+            return ("AMD EPYC", model) if model else (spec["line1"], spec["line2"])
         if model:
             return "RYZEN " + info["tier"], model
         return spec["line1"], spec["line2"]
