@@ -33,6 +33,10 @@ new drawing code.
 | AMD Threadripper | `threadripper` | rust |
 | AMD EPYC | `epyc` | datacenter teal |
 
+Large packages get a physically bigger die (20x10 full / 24x12 small instead of
+16x8 / 20x10): `epyc`, `threadripper`, `xeon` and every Apple Ultra. Apple
+Ultra additionally shows the UltraFusion seam between the two fused dies.
+
 Tier colours follow the vendors' badge designs (Intel blue `#0068B5` family,
 Ryzen orange-to-red, Apple's graphite/space-black keynote renders).
 

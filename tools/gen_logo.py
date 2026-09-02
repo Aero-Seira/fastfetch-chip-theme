@@ -182,7 +182,7 @@ class Board:
 
 def build_pcb(COLS=32, ROWS=16, DW=16, DH=8, ink=8, rim=6, trace=3, pad=4,
               via=5, power=2.0, reach=1.45, lines=("\u25cf M 4", "P R O"),
-              field="glow"):
+              field="glow", dual=False):
     ox, oy = (COLS-DW)//2, (ROWS-DH)//2
     L, R, T, B = ox, ox+DW, oy, oy+DH          # boundary cells: cols L..R-1, rows T..B-1
     b = Board(COLS, ROWS)
@@ -266,6 +266,12 @@ def build_pcb(COLS=32, ROWS=16, DW=16, DH=8, ink=8, rim=6, trace=3, pad=4,
         b.set(L, y, N|S, rim); b.set(R-1, y, N|S, rim)
     b.set(L, T, S|E, rim); b.set(R-1, T, S|W, rim)
     b.set(L, B-1, N|E, rim); b.set(R-1, B-1, N|W, rim)
+
+    # ---- UltraFusion seam: two fused dies (Apple Ultra) ----
+    if dual:
+        mx = L + DW // 2
+        for y in range(T+1, B-1):
+            b.put(mx, y, 0, rim, "\u2502")
 
     # ---- wordmark: literal characters, centred in the die ----
     texts, block = _lockup_rows(lines)
@@ -392,7 +398,12 @@ def write_config(palette, path):
 # ==========================================================================
 PCB = {"pcb":   dict(COLS=32, ROWS=16, DW=16, DH=8),
        "pcb32": dict(COLS=36, ROWS=18, DW=20, DH=10)}
+PCB_BIG = {"pcb":   dict(COLS=36, ROWS=18, DW=20, DH=10),
+           "pcb32": dict(COLS=40, ROWS=20, DW=24, DH=12)}
 TAGS = {"pcb": "", "full": "", "pcb32": "_small", "small": "_small"}
+
+def pcb_set(spec):
+    return PCB_BIG if spec.get("form") == "big" else PCB
 
 def generate(chip_id, size, power, reach, line1=None, line2=None, mono=False,
              out=None, pre=None, quiet=False, field=None):
@@ -401,12 +412,13 @@ def generate(chip_id, size, power, reach, line1=None, line2=None, mono=False,
              (spec["line2"] if line2 is None else line2))
     palette = registry.PALETTES[spec["palette"]]
     field = field or registry.FAMILY_FIELDS[spec["family"]]
+    pcbs = pcb_set(spec)
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     default_out = out is None
     out = out or os.path.join(here, "chips", chip_id, "%s%s.txt" % (chip_id, TAGS[size]))
-    if size in PCB:
-        board = build_pcb(**PCB[size], power=power, reach=reach, lines=lines,
-                          field=field)[0]
+    if size in pcbs:
+        board = build_pcb(**pcbs[size], power=power, reach=reach, lines=lines,
+                          field=field, dual=spec.get("dual", False))[0]
         text = emit_board(board)
         grid = board.render()
     else:
@@ -422,7 +434,7 @@ def generate(chip_id, size, power, reach, line1=None, line2=None, mono=False,
         pre = pre or os.path.join(here, "chips", chip_id, "preview%s.png" % TAGS[size])
         try:
             os.makedirs(os.path.dirname(pre), exist_ok=True)
-            if size in PCB: preview_board(board, pre, palette)
+            if size in pcbs: preview_board(board, pre, palette)
             else: preview(cells, pre, palette)
             if not quiet: print("wrote %s" % pre)
         except ImportError:
@@ -495,7 +507,8 @@ def main():
                                              chip, info["model"] or spec["label"]),
               file=sys.stderr)
         if not a.dest:                       # pipe mode: full-size logo to stdout
-            board = build_pcb(**PCB["pcb"], lines=(l1, l2), field=field)[0]
+            board = build_pcb(**pcb_set(spec)["pcb"], lines=(l1, l2), field=field,
+                              dual=spec.get("dual", False))[0]
             sys.stdout.write(emit_board(board))
             return
         os.makedirs(a.dest, exist_ok=True)
@@ -521,11 +534,12 @@ def main():
     chip = a.chip or registry.detect() or "m4pro"
     if chip not in registry.CHIPS:
         sys.exit("unknown chip %r (try --list)" % chip)
+    spec0 = registry.CHIPS[chip]
     sizes = [a.size] if a.size else (["pcb"] if a.output else ["pcb", "pcb32"])
     for size in sizes:
         grid = generate(chip, size,
-                        2.0 if size in PCB else a.power,
-                        1.45 if size in PCB else a.reach,
+                        2.0 if size in pcb_set(spec0) else a.power,
+                        1.45 if size in pcb_set(spec0) else a.reach,
                         a.line1, a.line2, a.mono, a.output, a.preview,
                         field=a.field)
     if a.ascii_preview:
