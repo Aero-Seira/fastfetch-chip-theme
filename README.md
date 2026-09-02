@@ -1,97 +1,89 @@
-# fastfetch-m4pro-theme
+# fastfetch-chip-theme
 
-An Apple-Silicon **M4 Pro** badge, redrawn as a fastfetch logo.
+A collection of geometry-generated fastfetch chip themes.
 
-![preview](assets/preview.png)
+Currently included:
 
-## What it is
-
-The official M4 Pro artwork is a square chip package: a light hairline substrate
-edge, a near-black die with a blue glow rising out of the bottom-left corner, and
-a silver lockup (`M4` with `PRO` centred underneath).
-
-This theme reproduces that as a **36 x 18** cell block drawing (the Apple mark is
-left out on purpose — at fetch size it turns into a blob and steals the focus;
-`--size mark` still has it):
-
-| layer | cells | colour |
+| Chip | Files | Preview |
 |---|---|---|
-| package rim | `▛▀` `▌` `` `▙▄` hairlines | `$6` sky `#60A8EC` |
-| die body + glow | `█` full blocks, radial ramp | `$1`-`$5` navy → bright blue |
-| `M4` / `PRO` | `█` full blocks | `$8` silver `#C8DEEE` |
+| `m4pro` | `chips/m4pro/m4pro.txt`, `chips/m4pro/m4pro_small.txt` | `chips/m4pro/preview.png` |
 
-* **Geometry, not a trace.** The die glow, the Apple mark and the `die`-style
-  glyphs are rasterised from circles, ellipses, rectangles and stroked
-  segments, then sampled into terminal cells where **1 column = 1 unit wide and
-  1 row = 2 units tall** — so a 20 x 11 die renders as a near-square.
-* **Junctions come for free.** Traces are stored as N/E/S/W connection bitmasks
-  and resolved through one box-drawing table, so a stub that lands on the package
-  rim automatically becomes `┬`/`┴`/`├`/`┤` — no hand-placing.
-* **Re-tintable.** The logo file only contains fastfetch's `$1`…`$9` colour
-  placeholders, so the whole badge is recoloured from `logo.color` in the config
-  — no need to edit the art.
-* **Background independent.** The die is painted with solid blocks, so it reads
-  correctly on both dark and light terminals.
+## What this repository provides
 
-## Install
+- Chip logo themes rendered from geometry (not traced bitmaps).
+- fastfetch-compatible `$1..$9` color placeholders for easy recoloring.
+- Shared config template + install/uninstall scripts.
+- A layout that can grow by adding new chip folders under `chips/`.
+
+## Install and select a chip theme
+
+Install the default chip (`m4pro`) and default size (`full`):
 
 ```sh
-bin/install.sh          # 38x19 logo (default)
-bin/install.sh small    # 34x17 logo for narrow terminals
+bin/install.sh
 ```
 
-That copies the logos to `~/.config/fastfetch/` and writes
-`~/.config/fastfetch/config.jsonc`, which fastfetch loads automatically:
+Install a specific chip and size:
+
+```sh
+bin/install.sh m4pro full
+bin/install.sh m4pro small
+```
+
+Backward-compatible shorthand is still supported:
+
+```sh
+bin/install.sh small
+```
+
+This writes `~/.config/fastfetch/config.jsonc` and the selected logo file(s), then:
 
 ```sh
 fastfetch
 ```
 
-Uninstall with `bin/uninstall.sh`.
-
-Requirements: a terminal with truecolour support and Unicode block-drawing
-glyphs (U+2580-U+259F — Menlo, JetBrainsMono Nerd Font, SF Mono, etc.).
-
-## Try it without installing
+Uninstall managed files with:
 
 ```sh
-fastfetch -c themes/config.jsonc --logo-type file --logo themes/m4pro.txt
+bin/uninstall.sh
 ```
 
-## Regenerate / customise
+## Try without installing
 
 ```sh
-python3 tools/gen_logo.py --size pcb           # 32x16 square -> themes/m4pro.txt + assets/preview.png
-python3 tools/gen_logo.py --size pcb32         # 36x18 square -> themes/m4pro_small.txt
-python3 tools/gen_logo.py --size pcb --lockup caps     # small-caps wordmark
-python3 tools/gen_logo.py --size pcb --lockup super    # superscript wordmark
-python3 tools/gen_logo.py --size pcb --power 2.4 --reach 1.6   # softer glow
-python3 tools/gen_logo.py --size full          # the older filled-block badge (36x18)
-python3 tools/gen_logo.py --size mark          # 38x19, with the Apple mark
-python3 tools/gen_logo.py --size pcb36 --power 1.9 --reach 1.15   # tighter glow
-python3 tools/gen_logo.py --size full --mono   # single-colour logo ($1 only)
+fastfetch -c templates/config.jsonc --logo-type file --logo chips/m4pro/m4pro.txt
 ```
 
-Presets live in one table at the top of the script (`SIZES`): die size, cap
-height/width, `PRO` size, gaps and padding — tweak there and regenerate.
+## Generate and customize chip themes
 
-Only Python 3 is required; `Pillow` is used for the PNG preview and is optional.
-The generator is self-contained — the reference artwork is *not* stored in this
-repository (it is Apple's copyrighted image), the logo is drawn from geometry.
+Regenerate theme text + preview for a chip folder:
 
-## Files
-
-```
-themes/m4pro.txt          32x16 square PCB logo, $1..$9 colour placeholders
-themes/m4pro_small.txt    36x18 variant
-themes/config.jsonc       fastfetch config (logo palette + key/title colours + structure)
-tools/gen_logo.py         the generator
-bin/install.sh            install / bin/uninstall.sh remove
-assets/preview*.png       rendered previews
+```sh
+python3 tools/gen_logo.py --chip m4pro --size pcb
+python3 tools/gen_logo.py --chip m4pro --size pcb32
 ```
 
-The module list in `config.jsonc` is 20 lines, so the 16-line logo is always
-printed in full (`logo.printRemaining` is enabled as a fallback too).
+Common customizations:
 
-Requires a font with U+2500-U+25FF (box drawing + blocks) and U+25CB — Menlo,
-SF Mono and JetBrains Mono all have them.
+```sh
+python3 tools/gen_logo.py --chip m4pro --size pcb --lockup caps
+python3 tools/gen_logo.py --chip m4pro --size pcb --power 2.4 --reach 1.6
+python3 tools/gen_logo.py --chip m4pro --size full --mono
+```
+
+The generator remains geometry-based and self-contained. Python 3 is required;
+`Pillow` is optional for preview PNG output.
+
+## Repository layout
+
+```text
+chips/
+  m4pro/                  chip-specific logo outputs and previews
+templates/
+  config.jsonc            shared fastfetch config template (@LOGO@ placeholder)
+tools/
+  gen_logo.py             geometry generator
+bin/
+  install.sh              install selected chip theme
+  uninstall.sh            remove managed fastfetch theme files
+```

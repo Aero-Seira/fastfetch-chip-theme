@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-gen_logo.py -- build an Apple-Silicon "M4 Pro" badge logo for fastfetch.
+gen_logo.py -- build chip badge logos for fastfetch.
 
 The artwork is a square chip die:
   * a light hairline package rim
@@ -14,7 +14,8 @@ placeholders, so the whole logo can be re-tinted from `logo.color` in the
 fastfetch config.
 
 Usage:
-    python3 tools/gen_logo.py [-o themes/m4pro.txt] [--preview assets/preview.png]
+    python3 tools/gen_logo.py [--chip m4pro] [-o chips/m4pro/m4pro.txt]
+                              [--preview chips/m4pro/preview.png]
                               [--cols 38] [--rows 19] [--mono]
 """
 import argparse, math, os, sys
@@ -499,6 +500,8 @@ def emit_board(board):
 def main():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     ap = argparse.ArgumentParser()
+    ap.add_argument("--chip", default="m4pro",
+                    help="chip preset name used for default output paths")
     ap.add_argument("--style", choices=["pcb", "die"], default="pcb")
     ap.add_argument("--size", choices=["pcb", "pcb32"] + list(SIZES), default="pcb")
     ap.add_argument("--lockup", choices=list(LOCKUPS), default="ascii",
@@ -512,7 +515,7 @@ def main():
     ap.add_argument("--reach", type=float, default=1.16)
     a = ap.parse_args()
     tag = {"pcb32": "_small", "small": "_small", "mark": "_mark"}.get(a.size, "")
-    out = a.output or os.path.join(here, "themes", "m4pro%s.txt" % tag)
+    out = a.output or os.path.join(here, "chips", a.chip, "%s%s.txt" % (a.chip, tag))
     # COLS = 2*ROWS keeps the whole fetch square (1 cell = 1 x 2 units)
     PCB = {"pcb":   dict(COLS=32, ROWS=16, DW=16, DH=8),
            "pcb32": dict(COLS=36, ROWS=18, DW=20, DH=10)}
@@ -529,9 +532,10 @@ def main():
     with open(out, "w", encoding="utf-8") as f:
         f.write(text)
     print("wrote %s  (%dx%d)" % (out, len(grid[0]), len(grid)))
-    pre = a.preview or os.path.join(here, "assets", "preview%s.png" % tag)
+    pre = a.preview or os.path.join(here, "chips", a.chip, "preview%s.png" % tag)
     if not a.mono:
         try:
+            os.makedirs(os.path.dirname(pre), exist_ok=True)
             (preview_board(board, pre) if board else preview(cells, pre)); print("wrote %s" % pre)
         except ImportError:
             print("Pillow missing: preview skipped", file=sys.stderr)
