@@ -68,8 +68,6 @@ Ryzen orange-to-red, Apple's graphite/space-black keynote renders).
 
 Large packages get a physically bigger die (20x10 full / 24x12 small instead
 of 16x8 / 20x10): `epyc`, `threadripper`, `xeon` and every Apple Ultra.
-Apple Ultra additionally shows the UltraFusion seam between the two fused
-dies (`dual` flag in the registry).
 
 ## Install
 
@@ -241,8 +239,7 @@ title = `$8`, output = `$7`, separator = `$4`).
 
 1. Add an entry to `CHIPS` in `tools/chips.py` (wordmark lines, palette name,
    CPU-detection regexes). Reuse a palette from `PALETTES` or add a new
-   9-colour one. Optional flags: `form: "big"` (large package) and
-   `dual: True` (dual-die seam).
+   9-colour one. Optional flag: `form: "big"` (large package).
 2. Map its `family` to a die field in `FAMILY_FIELDS` (`glow` / `band` /
    `ring`), or add a new field function in `tools/gen_logo.py`.
 3. Extend `identify()`/`wordmark()` if the model number needs new parsing,

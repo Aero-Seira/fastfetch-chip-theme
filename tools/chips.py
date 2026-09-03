@@ -175,12 +175,10 @@ for n, pal in ((9, "amd-red"), (7, "amd-orange"),
     )
 
 
-# large packages get a bigger die; Apple Ultra is two fused dies -> seam
-for _cid in ("epyc", "threadripper", "xeon"):
+# large packages get a bigger die
+for _cid in ("epyc", "threadripper", "xeon",
+             "m1ultra", "m2ultra", "m3ultra", "m5ultra"):
     CHIPS[_cid]["form"] = "big"
-for _cid in ("m1ultra", "m2ultra", "m3ultra", "m5ultra"):
-    CHIPS[_cid]["form"] = "big"
-    CHIPS[_cid]["dual"] = True
 
 
 def normalize(s):

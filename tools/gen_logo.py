@@ -198,7 +198,7 @@ class Board:
 
 def build_pcb(COLS=32, ROWS=16, DW=16, DH=8, ink=8, rim=6, trace=3, pad=4,
               via=5, power=2.0, reach=1.45, lines=("\u25cf M 4", "P R O"),
-              field="glow", dual=False):
+              field="glow"):
     ox, oy = (COLS-DW)//2, (ROWS-DH)//2
     L, R, T, B = ox, ox+DW, oy, oy+DH          # boundary cells: cols L..R-1, rows T..B-1
     b = Board(COLS, ROWS)
@@ -282,12 +282,6 @@ def build_pcb(COLS=32, ROWS=16, DW=16, DH=8, ink=8, rim=6, trace=3, pad=4,
         b.set(L, y, N|S, rim); b.set(R-1, y, N|S, rim)
     b.set(L, T, S|E, rim); b.set(R-1, T, S|W, rim)
     b.set(L, B-1, N|E, rim); b.set(R-1, B-1, N|W, rim)
-
-    # ---- UltraFusion seam: two fused dies (Apple Ultra) ----
-    if dual:
-        mx = L + DW // 2
-        for y in range(T+1, B-1):
-            b.put(mx, y, 0, rim, "\u2502")
 
     # ---- wordmark: literal characters, centred in the die ----
     texts, block = _lockup_rows(lines)
@@ -434,7 +428,7 @@ def generate(chip_id, size, power, reach, line1=None, line2=None, mono=False,
     out = out or os.path.join(here, "chips", chip_id, "%s%s.txt" % (chip_id, TAGS[size]))
     if size in pcbs:
         board = build_pcb(**pcbs[size], power=power, reach=reach, lines=lines,
-                          field=field, dual=spec.get("dual", False))[0]
+                          field=field)[0]
         text = emit_board(board)
         grid = board.render()
     else:
@@ -523,8 +517,8 @@ def main():
                                              chip, info["model"] or spec["label"]),
               file=sys.stderr)
         if not a.dest:                       # pipe mode: full-size logo to stdout
-            board = build_pcb(**pcb_set(spec)["pcb"], lines=(l1, l2), field=field,
-                              dual=spec.get("dual", False))[0]
+            board = build_pcb(**pcb_set(spec)["pcb"], lines=(l1, l2),
+                              field=field)[0]
             sys.stdout.write(emit_board(board))
             return
         os.makedirs(a.dest, exist_ok=True)
